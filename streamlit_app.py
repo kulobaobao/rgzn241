@@ -1,8 +1,8 @@
 import streamlit as st
 import os
 import dashscope
-from langchain.schema import SystemMessage, AIMessage, HumanMessage
-from langchain.llms.base import LLM
+from langchain_core.schema import SystemMessage, AIMessage, HumanMessage
+from langchain_core.llms import LLM
 from pydantic import BaseModel
 
 st.set_page_config(page_title="角色扮演AI助手", page_icon="🎭", layout="wide")

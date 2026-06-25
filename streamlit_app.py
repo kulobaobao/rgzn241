@@ -1,28 +1,35 @@
 import streamlit as st
 import os
-import dashscope
+import requests
 
 st.set_page_config(page_title="角色扮演AI助手", page_icon="🎭", layout="wide")
 
 st.title("🎭 角色扮演AI助手")
 
-api_key = st.secrets.get("DASHSCOPE_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
+api_key = st.secrets.get("DEEPSEEK_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
 
 def call_llm(prompt):
-    dashscope.api_key = api_key
-    response = dashscope.Generation.call(
-        model="qwen-plus",
-        prompt=prompt,
-        max_tokens=2048,
-        temperature=0.7
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    data = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 2048,
+        "temperature": 0.7
+    }
+    response = requests.post("https://api.deepseek.com/v1/chat/completions", headers=headers, json=data)
     if response.status_code == 200:
-        if response.output is not None and hasattr(response.output, 'text') and response.output.text is not None:
-            return response.output.text.strip()
+        result = response.json()
+        if "choices" in result and len(result["choices"]) > 0:
+            return result["choices"][0]["message"]["content"].strip()
         else:
-            raise Exception(f"API response has no text: {response}")
+            raise Exception(f"API response has no choices: {result}")
     else:
-        raise Exception(f"API call failed: {response.message}")
+        raise Exception(f"API call failed: {response.status_code} - {response.text}")
 
 preset_characters = {
     "孔子": {
@@ -77,8 +84,8 @@ with st.sidebar:
     st.subheader("模式选择")
     mode = st.selectbox("选择对话模式", ["角色扮演", "普通聊天", "智能助手"])
 
-    if not api_key or api_key == "your_dashscope_api_key_here":
-        st.warning("⚠️ DASHSCOPE_API_KEY 未配置，请在 Secrets 中设置")
+    if not api_key or api_key == "your_deepseek_api_key_here":
+        st.warning("⚠️ DEEPSEEK_API_KEY 未配置，请在 Secrets 中设置")
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -175,8 +182,8 @@ if user_input:
     with st.chat_message("assistant"):
         with st.spinner("思考中..."):
             try:
-                if not api_key or api_key == "your_dashscope_api_key_here":
-                    raise Exception("DASHSCOPE_API_KEY 未配置，请在 Streamlit Secrets 中设置")
+                if not api_key or api_key == "your_deepseek_api_key_here":
+                    raise Exception("DEEPSEEK_API_KEY 未配置，请在 Streamlit Secrets 中设置")
                 
                 if mode == "角色扮演":
                     result = roleplay_chat(
@@ -200,4 +207,4 @@ if user_input:
                 
             except Exception as e:
                 st.error(f"错误：{str(e)}")
-                st.markdown("请确保已在 Streamlit Secrets 中配置 DASHSCOPE_API_KEY")
+                st.markdown("请确保已在 Streamlit Secrets 中配置 DEEPSEEK_API_KEY")

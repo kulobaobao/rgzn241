@@ -1,9 +1,6 @@
 import streamlit as st
 import os
 import dashscope
-from langchain_core.schema import SystemMessage, AIMessage, HumanMessage
-from langchain_core.llms import LLM
-from pydantic import BaseModel
 
 st.set_page_config(page_title="角色扮演AI助手", page_icon="🎭", layout="wide")
 
@@ -11,32 +8,21 @@ st.title("🎭 角色扮演AI助手")
 
 api_key = st.secrets.get("DASHSCOPE_API_KEY") or os.getenv("DASHSCOPE_API_KEY")
 
-class DashScopeLLM(LLM):
-    model_name: str = "qwen-plus"
-    
-    @property
-    def _llm_type(self) -> str:
-        return "dashscope"
-    
-    def _call(self, prompt: str, stop=None) -> str:
-        dashscope.api_key = api_key
-        response = dashscope.Generation.call(
-            model=self.model_name,
-            prompt=prompt,
-            max_tokens=2048,
-            temperature=0.7
-        )
-        if response.status_code == 200:
-            if response.output is not None and hasattr(response.output, 'text') and response.output.text is not None:
-                return response.output.text.strip()
-            else:
-                raise Exception(f"API response has no text: {response}")
+def call_llm(prompt):
+    dashscope.api_key = api_key
+    response = dashscope.Generation.call(
+        model="qwen-plus",
+        prompt=prompt,
+        max_tokens=2048,
+        temperature=0.7
+    )
+    if response.status_code == 200:
+        if response.output is not None and hasattr(response.output, 'text') and response.output.text is not None:
+            return response.output.text.strip()
         else:
-            raise Exception(f"API call failed: {response.message}")
-
-llm = None
-if api_key and api_key != "your_dashscope_api_key_here":
-    llm = DashScopeLLM()
+            raise Exception(f"API response has no text: {response}")
+    else:
+        raise Exception(f"API call failed: {response.message}")
 
 preset_characters = {
     "孔子": {
@@ -91,7 +77,7 @@ with st.sidebar:
     st.subheader("模式选择")
     mode = st.selectbox("选择对话模式", ["角色扮演", "普通聊天", "智能助手"])
 
-    if not llm:
+    if not api_key or api_key == "your_dashscope_api_key_here":
         st.warning("⚠️ DASHSCOPE_API_KEY 未配置，请在 Secrets 中设置")
 
 if "chat_history" not in st.session_state:
@@ -132,19 +118,19 @@ def roleplay_chat(name: str, personality: str, background: str, speaking_style: 
 请严格按照上述角色设定进行对话，保持角色一致性。
 """
     
-    messages = [SystemMessage(content=system_prompt)]
+    messages = [f"system: {system_prompt}"]
     
     if chat_history:
         for msg in chat_history:
             if msg["role"] == "user":
-                messages.append(HumanMessage(content=msg["content"]))
+                messages.append(f"user: {msg['content']}")
             else:
-                messages.append(AIMessage(content=msg["content"]))
+                messages.append(f"assistant: {msg['content']}")
     
-    messages.append(HumanMessage(content=user_input))
+    messages.append(f"user: {user_input}")
     
-    prompt = "\n".join([f"{msg.type}: {msg.content}" for msg in messages])
-    result = llm(prompt)
+    prompt = "\n".join(messages)
+    result = call_llm(prompt)
     return result
 
 def normal_chat(user_input: str, chat_history: list = None):
@@ -153,14 +139,14 @@ def normal_chat(user_input: str, chat_history: list = None):
     if chat_history:
         for msg in chat_history:
             if msg["role"] == "user":
-                messages.append(HumanMessage(content=msg["content"]))
+                messages.append(f"user: {msg['content']}")
             else:
-                messages.append(AIMessage(content=msg["content"]))
+                messages.append(f"assistant: {msg['content']}")
     
-    messages.append(HumanMessage(content=user_input))
+    messages.append(f"user: {user_input}")
     
-    prompt = "\n".join([f"{msg.type}: {msg.content}" for msg in messages])
-    result = llm(prompt)
+    prompt = "\n".join(messages)
+    result = call_llm(prompt)
     return result
 
 def agent_chat(user_input: str):
@@ -177,7 +163,7 @@ def agent_chat(user_input: str):
 请直接给出答案或使用工具。
 """
     
-    result = llm(prompt)
+    result = call_llm(prompt)
     return result
 
 if user_input:
@@ -189,7 +175,7 @@ if user_input:
     with st.chat_message("assistant"):
         with st.spinner("思考中..."):
             try:
-                if not llm:
+                if not api_key or api_key == "your_dashscope_api_key_here":
                     raise Exception("DASHSCOPE_API_KEY 未配置，请在 Streamlit Secrets 中设置")
                 
                 if mode == "角色扮演":
